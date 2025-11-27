@@ -1,0 +1,4 @@
+id,nombre,descripcion,categoria,precio,stock,created_at
+1,Smartphone,Android,Electronicos,350.50,10,2025-11-23 22:28:22.692537
+2,Televisor smart,Toshiba,Electrodomesticos,500.60,5,2025-11-23 22:31:45.552336
+3,short rnd,rnd supplex,indumentaria deportiva,70.00,15,2025-11-23 22:33:10.164574

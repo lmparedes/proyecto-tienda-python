@@ -1,6 +1,7 @@
 # app.py
 import argparse
 from db import get_connection
+import csv
 
 # ---------------- CATEGORÍAS ----------------
 def agregar_categoria(nombre, descripcion):
@@ -138,6 +139,108 @@ def listar_productos():
         cursor.close()
         conn.close()
 
+def filtrar_productos(categoria_id=None, precio_min=None, precio_max=None, texto=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        query = """
+            SELECT p.id, p.nombre, p.descripcion, p.precio, p.stock,
+                   c.nombre AS categoria
+            FROM productos p
+            JOIN categorias c ON p.categoria_id = c.id
+            WHERE 1=1
+        """
+        params = []
+
+        # ----- Aplicar filtros si están presentes -----
+        if categoria_id is not None:
+            query += " AND p.categoria_id = %s"
+            params.append(categoria_id)
+
+        if precio_min is not None:
+            query += " AND p.precio >= %s"
+            params.append(precio_min)
+
+        if precio_max is not None:
+            query += " AND p.precio <= %s"
+            params.append(precio_max)
+
+        if texto:
+            query += " AND (p.nombre ILIKE %s OR p.descripcion ILIKE %s)"
+            params.extend([f"%{texto}%", f"%{texto}%"])
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        for row in rows:
+            print(row)
+
+    except Exception as e:
+        print("Error:", e)
+    finally:
+        cursor.close()
+        conn.close()
+
+import csv
+
+def exportar_productos_csv(categoria_id=None, precio_min=None, precio_max=None, texto=None, archivo="productos.csv"):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        query = """
+            SELECT p.id, p.nombre, p.descripcion, c.nombre AS categoria,
+                   p.precio, p.stock, p.created_at
+            FROM productos p
+            JOIN categorias c ON p.categoria_id = c.id
+            WHERE 1=1
+        """
+        params = []
+
+        # Filtros opcionales
+        if categoria_id is not None:
+            query += " AND p.categoria_id = %s"
+            params.append(categoria_id)
+
+        if precio_min is not None:
+            query += " AND p.precio >= %s"
+            params.append(precio_min)
+
+        if precio_max is not None:
+            query += " AND p.precio <= %s"
+            params.append(precio_max)
+
+        if texto:
+            query += " AND (p.nombre ILIKE %s OR p.descripcion ILIKE %s)"
+            params.extend([f"%{texto}%", f"%{texto}%"])
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        # ------------------------
+        #  📝 Crear archivo CSV
+        # ------------------------
+        with open(archivo, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+
+            # Encabezados
+            writer.writerow([
+                "id", "nombre", "descripcion",
+                "categoria", "precio", "stock", "created_at"
+            ])
+
+            # Filas
+            for row in rows:
+                writer.writerow(row)
+
+        print(f"Archivo CSV generado correctamente: {archivo}")
+
+    except Exception as e:
+        print("Error:", e)
+    finally:
+        cursor.close()
+        conn.close()
+
+
 # ---------------- CLI ----------------
 def main():
     parser = argparse.ArgumentParser(description="Gestión de Categorías y Productos")
@@ -179,7 +282,23 @@ def main():
 
     subparsers.add_parser("listar_productos")
 
+    #-------Filtros-------------
+
+    parser_filtrar = subparsers.add_parser("filtrar_productos")
+    parser_filtrar.add_argument("--categoria_id", type=int)
+    parser_filtrar.add_argument("--precio_min", type=float)
+    parser_filtrar.add_argument("--precio_max", type=float)
+    parser_filtrar.add_argument("--texto")
+
+    parser_exportar = subparsers.add_parser("exportar_csv")
+    parser_exportar.add_argument("--categoria_id", type=int)
+    parser_exportar.add_argument("--precio_min", type=float)
+    parser_exportar.add_argument("--precio_max", type=float)
+    parser_exportar.add_argument("--texto")
+    parser_exportar.add_argument("--archivo", default="productos.csv")
+
     args = parser.parse_args()
+
 
     # ----- Ejecutar comandos -----
     if args.comando == "agregar_categoria":
@@ -198,6 +317,21 @@ def main():
         eliminar_producto(args.id)
     elif args.comando == "listar_productos":
         listar_productos()
+    elif args.comando == "filtrar_productos":
+        filtrar_productos(
+            categoria_id=args.categoria_id,
+            precio_min=args.precio_min,
+            precio_max=args.precio_max,
+            texto=args.texto
+        )
+    elif args.comando == "exportar_csv":
+        exportar_productos_csv(
+            categoria_id=args.categoria_id,
+            precio_min=args.precio_min,
+            precio_max=args.precio_max,
+            texto=args.texto,
+            archivo=args.archivo
+        )
     else:
         parser.print_help()
 
